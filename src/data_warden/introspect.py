@@ -66,3 +66,15 @@ def collect_samples(
     for table_name, column_name in text_columns(engine, schema=schema):
         values = sample_column(engine, table_name, column_name, limit=limit, schema=schema)
         yield ColumnSample(table=table_name, column=column_name, values=values)
+
+
+def all_columns(engine: Engine, schema: str | None = None) -> dict[str, list[tuple[str, str]]]:
+    """Every table with its (column name, column type) pairs, in database order."""
+    inspector = inspect(engine)
+    return {
+        table_name: [
+            (col["name"], str(col["type"]))
+            for col in inspector.get_columns(table_name, schema=schema)
+        ]
+        for table_name in sorted(inspector.get_table_names(schema=schema))
+    }

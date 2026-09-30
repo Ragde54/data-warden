@@ -1,0 +1,146 @@
+{
+  "tables": [
+    {
+      "name": "customers",
+      "has_contract": true,
+      "owner": "customer-data-team",
+      "retention_days": 730,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "INTEGER",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "full_name",
+          "data_type": "TEXT",
+          "pii_type": "person_name",
+          "source": "declared only",
+          "confidence": null
+        },
+        {
+          "name": "col7",
+          "data_type": "TEXT",
+          "pii_type": "email",
+          "source": "detected + declared",
+          "confidence": 1.0
+        },
+        {
+          "name": "iban_raw",
+          "data_type": "TEXT",
+          "pii_type": "iban",
+          "source": "detected + declared",
+          "confidence": 1.0
+        },
+        {
+          "name": "phone",
+          "data_type": "TEXT",
+          "pii_type": "phone",
+          "source": "detected + declared",
+          "confidence": 1.0
+        },
+        {
+          "name": "postcode",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "segment",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        }
+      ],
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "name": "employees",
+      "has_contract": true,
+      "owner": "hr-systems",
+      "retention_days": 1095,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "INTEGER",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "ref_code",
+          "data_type": "TEXT",
+          "pii_type": "national_id",
+          "source": "detected + declared",
+          "confidence": 1.0
+        },
+        {
+          "name": "department",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "hired_year",
+          "data_type": "INTEGER",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        }
+      ],
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "name": "orders",
+      "has_contract": true,
+      "owner": "sales-ops",
+      "retention_days": 1825,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "INTEGER",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "customer_id",
+          "data_type": "INTEGER",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "amount",
+          "data_type": "NUMERIC(10, 2)",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "order_ref",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "notes",
+          "data_type": "TEXT",
+          "pii_type": "free_text_pii",
+          "source": "detected + declared",
+          "confidence": 0.175
+        }
+      ],
+      "errors": 0,
+      "warnings": 0
+    }
+  ]
+}

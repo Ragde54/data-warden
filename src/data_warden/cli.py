@@ -11,6 +11,7 @@ import typer
 from sqlalchemy import create_engine
 
 from data_warden import __version__
+from data_warden.catalog import build_catalog, render_markdown, to_dict
 from data_warden.check import run_checks
 from data_warden.contracts import (
     ContractError,
@@ -19,6 +20,7 @@ from data_warden.contracts import (
     write_missing_contracts,
 )
 from data_warden.evaluate import Report, evaluate, load_ground_truth
+from data_warden.introspect import all_columns
 from data_warden.policy import PolicyError, load_policy
 from data_warden.scan import DEFAULT_THRESHOLD, scan
 
@@ -208,3 +210,42 @@ def check_command(
         typer.echo(f"\ncheck {verdict}: {errors} error(s), {warnings} warning(s)")
     if errors:
         raise typer.Exit(1)
+
+
+@app.command(name="catalog")
+def catalog_command(
+    url: UrlOption = DEFAULT_URL,
+    directory: Annotated[
+        Path,
+        typer.Option("--dir", exists=True, file_okay=False, help="Folder with contract files."),
+    ] = Path("contracts"),
+    out: Annotated[Path, typer.Option(help="Folder for catalog.md and catalog.json.")] = Path(
+        "catalog"
+    ),
+    policy_file: Annotated[
+        Path | None,
+        typer.Option("--policy", exists=True, dir_okay=False, help="Policy file (optional)."),
+    ] = None,
+    limit: LimitOption = 1000,
+    threshold: ThresholdOption = DEFAULT_THRESHOLD,
+) -> None:
+    """Write a readable catalog (catalog.md) and a machine-readable one (catalog.json).
+
+    The catalog documents; it never fails on violations. Use `check` as the gate.
+    """
+    try:
+        contracts = load_contracts(directory)
+        policy = load_policy(policy_file)
+    except (ContractError, PolicyError) as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(2) from error
+    engine = create_engine(url)
+    findings = scan(engine, limit=limit, threshold=threshold)
+    violations = run_checks(findings, contracts, policy)
+    catalog = build_catalog(all_columns(engine), findings, contracts, violations)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "catalog.md").write_text(render_markdown(catalog), encoding="utf-8")
+    (out / "catalog.json").write_text(
+        json.dumps(to_dict(catalog), indent=2) + "\n", encoding="utf-8"
+    )
+    typer.echo(f"wrote {out / 'catalog.md'} and {out / 'catalog.json'}")
