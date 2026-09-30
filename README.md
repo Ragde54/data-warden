@@ -3,8 +3,8 @@
 Scan databases for personal data (PII, personally identifiable information), generate a catalog
 and data contracts, and fail the build when governance policies are broken.
 
-> Status: Phase 2 done (contracts, `check` gate, catalog). Next: a local LLM second opinion for
-> what rules cannot detect, such as person names.
+> Status: Phases 0 to 2 done. Phase 3 (optional local LLM for person names) is implemented and
+> tested with a fake model; results with a real model are pending.
 
 ## Why
 
@@ -29,12 +29,12 @@ uv run pytest
 Example `scan` output:
 
 ```
-COLUMN                      TYPE            CONFIDENCE  SAMPLES
-customers.col7              email           100%        200
-customers.iban_raw          iban            100%        200
-customers.phone             phone           100%        200
-employees.ref_code          national_id     100%        20
-orders.notes                free_text_pii   18%         400
+COLUMN                      TYPE            CONFIDENCE  SOURCE  SAMPLES
+customers.col7              email           100%        rules   200
+customers.iban_raw          iban            100%        rules   200
+customers.phone             phone           100%        rules   200
+employees.ref_code          national_id     100%        rules   20
+orders.notes                free_text_pii   13%         rules   400
 ```
 
 Detection is based on values, not column names: `col7` is found because its contents are emails.
@@ -60,6 +60,28 @@ has only six labeled personal-data columns. It proves the scanner does what it c
 works on real databases. Person names are the known gap: they have no checksum or fixed shape, so
 rules cannot find them. That is what the LLM (large language model) phase is for
 ([how scoring works](docs/decisions/0004-evaluation.md)).
+
+## Optional: a local LLM for person names
+
+Rules cannot recognise names, so `--llm` asks a model running on your machine (through
+[Ollama](https://ollama.com)) about every text column the rules did not flag:
+
+```bash
+ollama pull <model>                                   # any chat model you have
+uv run data-warden scan --llm --llm-model <model>
+uv run data-warden evaluate --llm --llm-model <model>  # rules alone vs rules + model
+```
+
+What to know before using it:
+
+- **It has to see the values.** Masking names would defeat the purpose. Instead, the model address
+  must be local (non-local addresses are refused), redirects and proxies are ignored, and at most
+  15 distinct values per column are shown.
+- **It never feeds `check` or `catalog`.** A gate that can fail differently on every run gets
+  switched off. Model findings are marked `llm` in the SOURCE column.
+- **It can be wrong, and the demo data tries to catch that:** `company_name` and `product_name`
+  look like surnames but are not personal data.
+- Design notes: [decision 0007](docs/decisions/0007-local-llm.md).
 
 ## Contracts and the check gate
 
@@ -105,7 +127,7 @@ it only changes when something real changed. See [`examples/catalog/catalog.md`]
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
 - [x] Phase 2: data contracts, policy checks, catalog
-- [ ] Phase 3: local LLM second opinion
+- [ ] Phase 3: local LLM second opinion (implemented, real-model results pending)
 - [ ] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure
 
