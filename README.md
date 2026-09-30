@@ -33,7 +33,7 @@ customers.col7              email           100%        rules   200
 customers.iban_raw          iban            100%        rules   200
 customers.phone             phone           100%        rules   200
 employees.ref_code          national_id     100%        rules   20
-orders.notes                free_text_pii   13%         rules   400
+orders.notes                free_text_pii   14%         rules   400
 ```
 
 Detection is based on values, not column names: `col7` is found because its contents are emails.
@@ -49,13 +49,13 @@ email              1   0   0  100%       100%
 free_text_pii      1   0   0  100%       100%
 iban               1   0   0  100%       100%
 national_id        1   0   0  100%       100%
-person_name        0   0   1  n/a        0%
+person_name        0   0   3  n/a        0%
 phone              1   0   0  100%       100%
-overall            5   0   1  100%       83%
+overall            5   0   3  100%       62%
 ```
 
 Read this with care: the demo data is synthetic, written by the same author as the detectors, and
-has only six labeled personal-data columns. It proves the scanner does what it claims, not that it
+has only eight labeled personal-data columns. It proves the scanner does what it claims, not that it
 works on real databases. Person names are the known gap: they have no checksum or fixed shape, so
 rules cannot find them. That is what the LLM (large language model) phase is for
 ([how scoring works](docs/decisions/0004-evaluation.md)).
@@ -78,31 +78,34 @@ What to know before using it:
   15 distinct values per column are shown.
 - **It never feeds `check` or `catalog`.** A gate that can fail differently on every run gets
   switched off. Model findings are marked `llm` in the SOURCE column.
-- **It can be wrong, and the demo data tries to catch that:** `company_name` and `product_name`
-  look like surnames but are not personal data.
+-   - **It can be wrong, and the demo data tries to catch that:** `company_name`, `product_name`,
+    `carrier` and `warehouse` look like names but are not personal data.
 - Design notes: [decision 0007](docs/decisions/0007-local-llm.md).
 
 ### Results with a local model
 
 Measured on the demo data with `gemma3:4b` through Ollama, on a Mac mini, October 2026.
+The demo data has three name columns in different shapes (full names, `SURNAME SURNAME, First`,
+first names only) and four decoys that read like names (`company_name`, `product_name`,
+`carrier`, `warehouse`).
 
-| Person names | Precision | Recall |
-| --- | --- | --- |
-| Rules only | n/a | 0% |
-| Rules + LLM | 100% | 100% |
+| Person names | TP | FP | FN | Precision | Recall |
+| --- | --- | --- | --- | --- | --- |
+| Rules only | 0 | 0 | 3 | n/a | 0% |
+| Rules + LLM | 3 | 0 | 0 | 100% | 100% |
 
-- **Cost:** a full scan with `--llm` took about 12.5 seconds, against a fraction of a second for
-  rules alone. The model is asked about the 7 text columns the rules did not flag, up to 3
-  questions each (about 17 calls). Cost grows with the number of unflagged text columns.
-- **Stability:** three consecutive runs produced byte-identical JSON (temperature 0, fixed seed).
-  Other models, model versions and hardware may differ.
+- **Cost:** a full scan with `--llm` took about 22 seconds. The model is asked about the 11 text
+  columns the rules did not flag, up to 3 questions each (at most 33 calls), so cost grows with
+  the number of such columns.
+- **Stability:** three consecutive runs produced byte-identical output (temperature 0, fixed
+  seed). Other models, model versions and hardware may differ.
 - **Reading the SAMPLES column:** for `rules` it is the number of values sampled (up to 1000). For
   `llm` it is the number of distinct values shown to the model (at most 15).
 
-Read this with care: the demo data has one real name column and six non-name text columns. Two of
-them (`company_name`, `product_name`) are decoys that read like surnames, but the names are
-generated Spanish full names, which is the easy case. The result shows the pipeline works and that
-a small local model handles an easy case. It does not show the model is reliable on real data.
+Read this with care: it is one small model on synthetic Spanish names, 16 text columns of which
+11 were shown to the model, and three real name columns. It shows the pipeline works and that a
+small local model handles these shapes. It does not show the model is reliable on real data,
+other languages or other model versions.
 
 ## Contracts and the check gate
 
@@ -148,7 +151,7 @@ it only changes when something real changed. See [`examples/catalog/catalog.md`]
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
 - [x] Phase 2: data contracts, policy checks, catalog
-- [x] Phase 3: local LLM second opinion (implemented, real-model results pending)
+- [x] Phase 3: Phase 3: local LLM second opinion
 - [ ] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure
 
