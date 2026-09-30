@@ -12,6 +12,9 @@ from typing import Protocol
 
 class Detector(Protocol):
     pii_type: str
+    # None: use the scan-wide threshold (for detectors where the whole value must match).
+    # A number: this detector needs its own bar (for example free text, where only a few rows leak).
+    threshold: float | None
 
     def match_rate(self, values: Sequence[str]) -> float:
         """Share of values (0.0 to 1.0) that match this detector's PII type."""
