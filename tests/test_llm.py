@@ -23,6 +23,10 @@ class FakeClassifier:
         return self.rule(table, column, samples)
 
 
+NAME_COLUMNS = ("full_name", "billing_name", "first_name")
+DECOY_COLUMNS = ("company_name", "product_name", "carrier", "warehouse")
+
+
 def says_name_for(*columns):
     return FakeClassifier(lambda t, c, s: "person_name" if c in columns else None)
 
@@ -104,21 +108,30 @@ def test_columns_without_values_are_skipped(engine):
 
 
 def test_a_perfect_model_closes_the_name_gap(engine):
-    merged, _ = add_llm_findings(engine, scan(engine), says_name_for("full_name"))
+    merged, _ = add_llm_findings(engine, scan(engine), says_name_for(*NAME_COLUMNS))
     report = evaluate(merged, synthetic.GROUND_TRUTH)
     scores = {s.pii_type: s for s in report.by_type}
     assert scores["person_name"].recall == 1.0
     assert report.overall.fp == 0
 
 
+def test_a_model_that_misses_one_name_shape_loses_recall(engine):
+    merged, _ = add_llm_findings(engine, scan(engine), says_name_for("full_name", "first_name"))
+    person = {s.pii_type: s for s in evaluate(merged, synthetic.GROUND_TRUTH).by_type}[
+        "person_name"
+    ]
+    assert person.recall == pytest.approx(2 / 3)
+    assert person.precision == 1.0
+
+
 def test_evaluation_punishes_a_model_fooled_by_lookalike_columns(engine):
-    """The decoys exist for this: company and product names read like surnames."""
-    fooled = says_name_for("full_name", "company_name", "product_name")
+    """The decoys exist for this: companies, products, carriers and sites read like surnames."""
+    fooled = says_name_for(*NAME_COLUMNS, *DECOY_COLUMNS)
     merged, _ = add_llm_findings(engine, scan(engine), fooled)
     report = evaluate(merged, synthetic.GROUND_TRUTH)
     person = {s.pii_type: s for s in report.by_type}["person_name"]
-    assert person.fp == 2
-    assert person.precision == pytest.approx(1 / 3)
+    assert person.fp == 4
+    assert person.precision == pytest.approx(3 / 7)
 
 
 # --- command line -------------------------------------------------------------------------
@@ -133,7 +146,7 @@ def db_url(tmp_path):
 
 @pytest.fixture
 def fake_model(monkeypatch):
-    fake = says_name_for("full_name")
+    fake = says_name_for(*NAME_COLUMNS)
     monkeypatch.setattr("data_warden.cli.OllamaClassifier", lambda *a, **k: fake)
     return fake
 

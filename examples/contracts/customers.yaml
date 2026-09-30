@@ -6,6 +6,7 @@ table: customers
 owner: customer-data-team
 retention_days: 730
 pii_columns:
+  billing_name: person_name
   col7: email
   full_name: person_name
   iban_raw: iban

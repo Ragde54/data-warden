@@ -61,10 +61,17 @@
           "pii_type": null,
           "source": null,
           "confidence": null
+        },
+        {
+          "name": "billing_name",
+          "data_type": "TEXT",
+          "pii_type": "person_name",
+          "source": "declared only",
+          "confidence": null
         }
       ],
       "errors": 0,
-      "warnings": 1
+      "warnings": 2
     },
     {
       "name": "employees",
@@ -87,6 +94,13 @@
           "confidence": 1.0
         },
         {
+          "name": "first_name",
+          "data_type": "TEXT",
+          "pii_type": "person_name",
+          "source": "declared only",
+          "confidence": null
+        },
+        {
           "name": "department",
           "data_type": "TEXT",
           "pii_type": null,
@@ -102,7 +116,7 @@
         }
       ],
       "errors": 0,
-      "warnings": 0
+      "warnings": 1
     },
     {
       "name": "orders",
@@ -146,11 +160,25 @@
           "confidence": null
         },
         {
+          "name": "carrier",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
+          "name": "warehouse",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
           "name": "notes",
           "data_type": "TEXT",
           "pii_type": "free_text_pii",
           "source": "detected + declared",
-          "confidence": 0.1325
+          "confidence": 0.1375
         }
       ],
       "errors": 0,

@@ -16,6 +16,14 @@ from sqlalchemy import Column, Integer, MetaData, Numeric, Table, Text, create_e
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
 
 # Products named after people: a trap for anything that guesses "person name" by word shape.
+CARRIERS = [
+    "Transportes Perez e Hijos", "Hermanos Martinez Logistica", "Correos Express",
+    "Garcia y Lopez Transportes", "Mensajeros Romero", "Envios Navarro",
+]  # fmt: skip
+WAREHOUSES = [
+    "Almacen Cervantes", "Nave Gaudi", "Centro Logistico Picasso",
+    "Almacen Principe Pio", "Nave Colon", "Centro Dali",
+]  # fmt: skip
 PRODUCT_NAMES = [
     "Silla Eames", "Lampara Tiffany", "Mesa Bauhaus", "Sofa Chesterfield",
     "Estanteria Billy", "Escritorio Ferdinand", "Cama Montessori", "Butaca Wassily",
@@ -31,14 +39,18 @@ GROUND_TRUTH: dict[str, str | None] = {
     "customers.postcode": None,  # digits, but not personal
     "customers.segment": None,
     "customers.company_name": None,  # decoy: reads like a surname, but it is a company
+    "customers.billing_name": "person_name",  # "SURNAME SURNAME, First": a different shape
     "orders.id": None,
     "orders.customer_id": None,
     "orders.amount": None,
     "orders.order_ref": None,  # looks like an identifier, is not PII
     "orders.product_name": None,  # decoy: product names borrowed from people
+    "orders.carrier": None,  # decoy: transport firms named after families
+    "orders.warehouse": None,  # decoy: sites named after famous people
     "orders.notes": "free_text_pii",  # sometimes contains a phone number
     "employees.id": None,
     "employees.ref_code": "national_id",  # Spanish DNI hidden in a vague column
+    "employees.first_name": "person_name",  # first names only: short, easy to confuse with words
     "employees.department": None,
     "employees.hired_year": None,
 }
@@ -68,6 +80,9 @@ def generate(seed: int = 42, rows: int = 200) -> dict[str, list[dict[str, Any]]]
             "postcode": fake.postcode(),
             "segment": rng.choice(["retail", "smb", "enterprise"]),
             "company_name": fake.company(),
+            "billing_name": (
+                f"{fake.last_name().upper()} {fake.last_name().upper()}, {fake.first_name()}"
+            ),
         }
         for i in range(1, rows + 1)
     ]
@@ -82,6 +97,8 @@ def generate(seed: int = 42, rows: int = 200) -> dict[str, list[dict[str, Any]]]
                 "amount": round(rng.uniform(5, 900), 2),
                 "order_ref": f"ORD-{i:06d}",
                 "product_name": rng.choice(PRODUCT_NAMES),
+                "carrier": rng.choice(CARRIERS),
+                "warehouse": rng.choice(WAREHOUSES),
                 "notes": note,
             }
         )
@@ -89,6 +106,7 @@ def generate(seed: int = 42, rows: int = 200) -> dict[str, list[dict[str, Any]]]
         {
             "id": i,
             "ref_code": make_dni(rng),
+            "first_name": fake.first_name(),
             "department": rng.choice(["data", "ops", "finance", "sales"]),
             "hired_year": rng.randint(2012, 2026),
         }
@@ -109,6 +127,7 @@ def _tables(meta: MetaData) -> None:
         Column("postcode", Text),
         Column("segment", Text),
         Column("company_name", Text),
+        Column("billing_name", Text),
     )
     Table(
         "orders",
@@ -118,6 +137,8 @@ def _tables(meta: MetaData) -> None:
         Column("amount", Numeric(10, 2)),
         Column("order_ref", Text),
         Column("product_name", Text),
+        Column("carrier", Text),
+        Column("warehouse", Text),
         Column("notes", Text),
     )
     Table(
@@ -125,6 +146,7 @@ def _tables(meta: MetaData) -> None:
         meta,
         Column("id", Integer, primary_key=True),
         Column("ref_code", Text),
+        Column("first_name", Text),
         Column("department", Text),
         Column("hired_year", Integer),
     )

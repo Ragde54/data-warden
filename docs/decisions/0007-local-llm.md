@@ -24,8 +24,10 @@ model are not measured yet.
   fail differently on every run gets disabled. Model findings are marked `source: llm` and are
   for exploration and for `evaluate`.
 - **Measured side by side.** `evaluate --llm` prints rules alone and rules plus model. The demo
-  data has decoys that read like surnames (`company_name`, `product_name`), so a model that guesses
-  from the look of a word is punished in precision.
+  data has three name columns in different shapes (full names, `SURNAME SURNAME, First`, first
+  names only) and four decoys that read like names (`company_name`, `product_name`, `carrier`,
+  `warehouse`), so a model that guesses from the look of a word is punished in precision, and one
+  that only knows the easy shape is punished in recall.
 - **Standard library HTTP, no new dependency.** One POST request does not justify a client library.
 - **Known limits:** temperature 0 and a fixed seed make runs close to repeatable, not identical
   across model versions. Small models may fail at this task; the evaluation exists to show it.

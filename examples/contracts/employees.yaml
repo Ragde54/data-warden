@@ -6,4 +6,5 @@ table: employees
 owner: hr-systems
 retention_days: 1095
 pii_columns:
+  first_name: person_name
   ref_code: national_id
