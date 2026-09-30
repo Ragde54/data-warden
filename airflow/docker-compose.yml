@@ -1,0 +1,39 @@
+# Demo stack: one Airflow container (`airflow standalone`) plus a Postgres database to watch.
+# `standalone` uses SQLite and a single process. It is for learning and demos, not production.
+name: data-warden-airflow
+
+services:
+  source-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: warden
+      POSTGRES_PASSWORD: warden  # local demo only, never reuse
+      POSTGRES_DB: demo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warden -d demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  airflow:
+    build:
+      context: ..
+      dockerfile: airflow/Dockerfile
+    command: standalone
+    depends_on:
+      source-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"  # only this machine can reach the UI
+    environment:
+      DATA_WARDEN_DB_URL: postgresql+psycopg://warden:warden@source-db:5432/demo
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags:ro
+      - ../examples/contracts:/opt/airflow/contracts:ro
+      - ../examples/policy.yaml:/opt/airflow/policy.yaml:ro
+      - history:/opt/airflow/history
+
+volumes:
+  history:

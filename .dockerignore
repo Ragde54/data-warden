@@ -1,0 +1,14 @@
+# Keep the build context small: only pyproject.toml, uv.lock, README.md and src/ are needed.
+.git
+.github
+.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.db
+ground_truth.json
+tests
+docs
+examples
+catalog
+contracts

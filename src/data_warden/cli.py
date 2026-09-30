@@ -19,6 +19,7 @@ from data_warden.contracts import (
     load_contracts,
     write_missing_contracts,
 )
+from data_warden.drift import diff_catalogs, load_catalog, previous_catalog
 from data_warden.evaluate import Report, evaluate, load_ground_truth
 from data_warden.introspect import all_columns
 from data_warden.llm import DEFAULT_URL as DEFAULT_LLM_URL
@@ -324,3 +325,42 @@ def catalog_command(
         json.dumps(to_dict(catalog), indent=2) + "\n", encoding="utf-8"
     )
     typer.echo(f"wrote {out / 'catalog.md'} and {out / 'catalog.json'}")
+
+
+@app.command(name="diff")
+def diff_command(
+    current: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, help="The new catalog.json.")
+    ],
+    previous: Annotated[
+        Path | None,
+        typer.Argument(exists=True, dir_okay=False, help="Older catalog.json (default: auto)."),
+    ] = None,
+    as_json: JsonOption = False,
+) -> None:
+    """Show what changed since the previous catalog. Informational: always exits 0.
+
+    Without PREVIOUS, the newest earlier run folder next to CURRENT is used
+    (layout: <history>/<run-id>/catalog.json). No earlier run means this is the baseline.
+    """
+    try:
+        old_path = previous or previous_catalog(current)
+        if old_path is None:
+            typer.echo("baseline: no earlier catalog to compare with")
+            return
+        changes = diff_catalogs(load_catalog(old_path), load_catalog(current))
+    except (ValueError, OSError) as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(2) from error
+    if as_json:
+        typer.echo(
+            json.dumps([asdict(c) | {"is_pii_risk": c.is_pii_risk} for c in changes], indent=2)
+        )
+        return
+    typer.echo(f"comparing {old_path} -> {current}")
+    if not changes:
+        typer.echo("no changes")
+    for c in changes:
+        where = c.table if c.column is None else f"{c.table}.{c.column}"
+        flag = "PII " if c.is_pii_risk else "    "
+        typer.echo(f"{flag}{c.kind:<18}{where:<30}{c.detail}")
