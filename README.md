@@ -3,8 +3,7 @@
 Scan databases for personal data (PII, personally identifiable information), generate a catalog
 and data contracts, and fail the build when governance policies are broken.
 
-> Status: Phases 0 to 2 done. Phase 3 (optional local LLM for person names) is implemented and
-> tested with a fake model; results with a real model are pending.
+> Status: Phases 0 to 3 done. Next: scheduling and drift alerts.
 
 ## Why
 
@@ -83,6 +82,28 @@ What to know before using it:
   look like surnames but are not personal data.
 - Design notes: [decision 0007](docs/decisions/0007-local-llm.md).
 
+### Results with a local model
+
+Measured on the demo data with `gemma3:4b` through Ollama, on a Mac mini, October 2026.
+
+| Person names | Precision | Recall |
+| --- | --- | --- |
+| Rules only | n/a | 0% |
+| Rules + LLM | 100% | 100% |
+
+- **Cost:** a full scan with `--llm` took about 12.5 seconds, against a fraction of a second for
+  rules alone. The model is asked about the 7 text columns the rules did not flag, up to 3
+  questions each (about 17 calls). Cost grows with the number of unflagged text columns.
+- **Stability:** three consecutive runs produced byte-identical JSON (temperature 0, fixed seed).
+  Other models, model versions and hardware may differ.
+- **Reading the SAMPLES column:** for `rules` it is the number of values sampled (up to 1000). For
+  `llm` it is the number of distinct values shown to the model (at most 15).
+
+Read this with care: the demo data has one real name column and six non-name text columns. Two of
+them (`company_name`, `product_name`) are decoys that read like surnames, but the names are
+generated Spanish full names, which is the easy case. The result shows the pipeline works and that
+a small local model handles an easy case. It does not show the model is reliable on real data.
+
 ## Contracts and the check gate
 
 `generate-contracts` writes one small YAML file per table that holds personal data. A human fills in
@@ -127,7 +148,7 @@ it only changes when something real changed. See [`examples/catalog/catalog.md`]
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
 - [x] Phase 2: data contracts, policy checks, catalog
-- [ ] Phase 3: local LLM second opinion (implemented, real-model results pending)
+- [x] Phase 3: local LLM second opinion (implemented, real-model results pending)
 - [ ] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure
 
