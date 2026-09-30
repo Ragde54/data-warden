@@ -3,8 +3,8 @@
 Scan databases for personal data (PII, personally identifiable information), generate a catalog
 and data contracts, and fail the build when governance policies are broken.
 
-> Status: Phase 2 in progress. Detection, evaluation, data contracts and a `check` gate work.
-> Next: a readable catalog, then a local LLM second opinion.
+> Status: Phase 2 done (contracts, `check` gate, catalog). Next: a local LLM second opinion for
+> what rules cannot detect, such as person names.
 
 ## Why
 
@@ -22,6 +22,7 @@ uv run data-warden scan --json   # same, machine-readable
 uv run data-warden evaluate      # scores the scan against the answer key
 uv run data-warden generate-contracts   # writes starter contracts/ (never overwrites)
 uv run data-warden check                # exits 1 if scan and contracts disagree
+uv run data-warden catalog              # writes catalog/catalog.md and catalog.json
 uv run pytest
 ```
 
@@ -86,6 +87,13 @@ Exit codes: 0 passed, 1 violations, 2 unreadable contract or policy. Working exa
 [`examples/`](examples/), and CI runs `check` against them
 ([decision 0005](docs/decisions/0005-contracts-and-checks.md)).
 
+## Catalog
+
+`catalog` joins the live schema, the scanner and the contracts into a readable page and a JSON
+file. It documents and never fails the build; `check` is the gate. Output has no timestamps, so
+it only changes when something real changed. See [`examples/catalog/catalog.md`](examples/catalog/catalog.md)
+([decision 0006](docs/decisions/0006-catalog.md)).
+
 ## Known limitations
 
 - Only text columns are scanned, and values are sampled with `LIMIT`, not randomly
@@ -96,7 +104,7 @@ Exit codes: 0 passed, 1 violations, 2 unreadable contract or policy. Working exa
 
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
-- [ ] Phase 2: data contracts and policy checks (done), readable catalog (next)
+- [x] Phase 2: data contracts, policy checks, catalog
 - [ ] Phase 3: local LLM second opinion
 - [ ] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure
