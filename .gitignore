@@ -8,3 +8,4 @@ ground_truth.json
 .terraform/
 *.tfstate*
 .env
+.DS_Store
