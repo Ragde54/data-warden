@@ -3,7 +3,8 @@
 Scan databases for personal data (PII, personally identifiable information), generate a catalog
 and data contracts, and fail the build when governance policies are broken.
 
-> Status: Phase 1 done (detection and evaluation). Next: catalog, data contracts and policy checks.
+> Status: Phase 2 in progress. Detection, evaluation, data contracts and a `check` gate work.
+> Next: a readable catalog, then a local LLM second opinion.
 
 ## Why
 
@@ -19,6 +20,8 @@ uv run data-warden seed          # loads messy demo data, writes ground_truth.js
 uv run data-warden scan          # lists columns that look like personal data
 uv run data-warden scan --json   # same, machine-readable
 uv run data-warden evaluate      # scores the scan against the answer key
+uv run data-warden generate-contracts   # writes starter contracts/ (never overwrites)
+uv run data-warden check                # exits 1 if scan and contracts disagree
 uv run pytest
 ```
 
@@ -57,6 +60,32 @@ works on real databases. Person names are the known gap: they have no checksum o
 rules cannot find them. That is what the LLM (large language model) phase is for
 ([how scoring works](docs/decisions/0004-evaluation.md)).
 
+## Contracts and the check gate
+
+`generate-contracts` writes one small YAML file per table that holds personal data. A human fills in
+the owner and retention period and adds columns rules cannot detect (like names). `check` then
+compares the scanner with the contracts and fails the build when they disagree:
+
+```yaml
+table: customers
+owner: customer-data-team
+retention_days: 730
+pii_columns:
+  col7: email
+  full_name: person_name   # declared by a human, rules cannot detect names
+```
+
+| Situation | Result |
+| --- | --- |
+| Scanner finds PII the contract does not declare | error |
+| Contract declares a different type than the scanner found | error |
+| Table with PII has no contract, owner or retention | error |
+| Contract declares a column the scanner did not detect | warning |
+
+Exit codes: 0 passed, 1 violations, 2 unreadable contract or policy. Working examples live in
+[`examples/`](examples/), and CI runs `check` against them
+([decision 0005](docs/decisions/0005-contracts-and-checks.md)).
+
 ## Known limitations
 
 - Only text columns are scanned, and values are sampled with `LIMIT`, not randomly
@@ -67,7 +96,7 @@ rules cannot find them. That is what the LLM (large language model) phase is for
 
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
-- [ ] Phase 2: catalog, data contracts, policy checks
+- [ ] Phase 2: data contracts and policy checks (done), readable catalog (next)
 - [ ] Phase 3: local LLM second opinion
 - [ ] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure

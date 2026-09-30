@@ -17,3 +17,5 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
+      - run: uv run data-warden seed --url sqlite:///demo.db
+      - run: uv run data-warden check --url sqlite:///demo.db --dir examples/contracts --policy examples/policy.yaml
