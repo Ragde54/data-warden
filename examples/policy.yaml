@@ -1,0 +1,4 @@
+# Every table that holds personal data must fill in these contract fields.
+pii_tables_require:
+  - owner
+  - retention_days

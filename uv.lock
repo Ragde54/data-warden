@@ -35,6 +35,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "psycopg", extra = ["binary"] },
+    { name = "pyyaml" },
     { name = "sqlalchemy" },
     { name = "typer" },
 ]
@@ -56,6 +57,7 @@ dev = [
 requires-dist = [
     { name = "faker", marker = "extra == 'demo'", specifier = ">=25" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "typer", specifier = ">=0.12" },
 ]

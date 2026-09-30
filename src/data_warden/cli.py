@@ -11,7 +11,15 @@ import typer
 from sqlalchemy import create_engine
 
 from data_warden import __version__
+from data_warden.check import run_checks
+from data_warden.contracts import (
+    ContractError,
+    contracts_from_findings,
+    load_contracts,
+    write_missing_contracts,
+)
 from data_warden.evaluate import Report, evaluate, load_ground_truth
+from data_warden.policy import PolicyError, load_policy
 from data_warden.scan import DEFAULT_THRESHOLD, scan
 
 app = typer.Typer(help="Find personal data in databases and govern it as code.")
@@ -128,3 +136,75 @@ def evaluate_command(
         typer.echo(
             f"\n{report.unlabeled} flagged column(s) are not in the answer key and were ignored."
         )
+
+
+ContractsDirOption = Annotated[
+    Path, typer.Option("--dir", help="Folder holding one contract file per table.")
+]
+
+
+@app.command(name="generate-contracts")
+def generate_contracts_command(
+    url: UrlOption = DEFAULT_URL,
+    directory: ContractsDirOption = Path("contracts"),
+    limit: LimitOption = 1000,
+    threshold: ThresholdOption = DEFAULT_THRESHOLD,
+) -> None:
+    """Write a starter contract for every table with personal data. Never overwrites files."""
+    findings = scan(create_engine(url), limit=limit, threshold=threshold)
+    created, skipped = write_missing_contracts(contracts_from_findings(findings), directory)
+    for path in created:
+        typer.echo(f"created  {path}")
+    for path in skipped:
+        typer.echo(f"exists   {path} (left untouched)")
+    if created:
+        typer.echo("Fill in owner and retention_days in each file, then run `data-warden check`.")
+    elif not skipped:
+        typer.echo("No personal data found; no contracts needed.")
+
+
+@app.command(name="check")
+def check_command(
+    url: UrlOption = DEFAULT_URL,
+    directory: Annotated[
+        Path,
+        typer.Option("--dir", exists=True, file_okay=False, help="Folder with contract files."),
+    ] = Path("contracts"),
+    policy_file: Annotated[
+        Path | None,
+        typer.Option("--policy", exists=True, dir_okay=False, help="Policy file (optional)."),
+    ] = None,
+    limit: LimitOption = 1000,
+    threshold: ThresholdOption = DEFAULT_THRESHOLD,
+    as_json: JsonOption = False,
+) -> None:
+    """Fail (exit code 1) when the scan and the contracts disagree. Exit code 2: bad input."""
+    try:
+        contracts = load_contracts(directory)
+        policy = load_policy(policy_file)
+    except (ContractError, PolicyError) as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(2) from error
+    findings = scan(create_engine(url), limit=limit, threshold=threshold)
+    violations = run_checks(findings, contracts, policy)
+    errors = sum(v.severity == "error" for v in violations)
+    warnings = len(violations) - errors
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {
+                    "errors": errors,
+                    "warnings": warnings,
+                    "violations": [asdict(v) for v in violations],
+                },
+                indent=2,
+            )
+        )
+    else:
+        for v in violations:
+            where = v.table if v.column is None else f"{v.table}.{v.column}"
+            typer.echo(f"{v.severity.upper():<9}{where:<26}{v.rule:<24}{v.message}")
+        verdict = "FAILED" if errors else "passed"
+        typer.echo(f"\ncheck {verdict}: {errors} error(s), {warnings} warning(s)")
+    if errors:
+        raise typer.Exit(1)
