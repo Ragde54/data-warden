@@ -6,7 +6,8 @@ __pycache__/
 ground_truth.json
 *.db
 .terraform/
-contracts/
 *.tfstate*
 .env
 .DS_Store
+/catalog/
+/contracts/
