@@ -3,7 +3,7 @@
 Scan databases for personal data (PII, personally identifiable information), generate a catalog
 and data contracts, and fail the build when governance policies are broken.
 
-> Status: Phases 0 to 3 done. Next: scheduling and drift alerts.
+> Status: Phases 0 to 4 done. Next: Terraform deployment on Azure.
 
 ## Why
 
@@ -22,6 +22,7 @@ uv run data-warden evaluate      # scores the scan against the answer key
 uv run data-warden generate-contracts   # writes starter contracts/ (never overwrites)
 uv run data-warden check                # exits 1 if scan and contracts disagree
 uv run data-warden catalog              # writes catalog/catalog.md and catalog.json
+uv run data-warden diff catalog/<run>/catalog.json   # what changed since the previous run
 uv run pytest
 ```
 
@@ -78,8 +79,8 @@ What to know before using it:
   15 distinct values per column are shown.
 - **It never feeds `check` or `catalog`.** A gate that can fail differently on every run gets
   switched off. Model findings are marked `llm` in the SOURCE column.
--   - **It can be wrong, and the demo data tries to catch that:** `company_name`, `product_name`,
-    `carrier` and `warehouse` look like names but are not personal data.
+- **It can be wrong, and the demo data tries to catch that:** `company_name`, `product_name`,
+  `carrier` and `warehouse` look like names but are not personal data.
 - Design notes: [decision 0007](docs/decisions/0007-local-llm.md).
 
 ### Results with a local model
@@ -140,19 +141,31 @@ file. It documents and never fails the build; `check` is the gate. Output has no
 it only changes when something real changed. See [`examples/catalog/catalog.md`](examples/catalog/catalog.md)
 ([decision 0006](docs/decisions/0006-catalog.md)).
 
+## Scheduling
+
+[`airflow/`](airflow/) runs the whole loop every night on plain Apache Airflow: `catalog` scans the
+live database and keeps each run in its own folder, `diff` reports what changed since the previous
+run, and `check` fails the run when the database and the contracts disagree. Add a column full of
+email addresses, trigger the DAG (a scheduled workflow), and the run turns red with the column
+named in the log. The folders are the audit trail and the contracts are the baseline, so the alarm
+needs no stored state ([decision 0008](docs/decisions/0008-airflow.md)). The walkthrough is in
+[`airflow/README.md`](airflow/README.md).
+
 ## Known limitations
 
 - Only text columns are scanned, and values are sampled with `LIMIT`, not randomly
   ([decision 0002](docs/decisions/0002-sampling.md)). A clean scan is evidence, not proof.
 - Validators cover Spanish IDs and a dozen European IBAN lengths; other formats are not recognized.
+- The Airflow setup uses `airflow standalone` (one container, SQLite). It is a demo, not a
+  production deployment.
 
 ## Roadmap
 
 - [x] Phase 0: skeleton, CI, messy demo data with an answer key
 - [x] Phase 1: detection core with precision/recall metrics
 - [x] Phase 2: data contracts, policy checks, catalog
-- [x] Phase 3: Phase 3: local LLM second opinion
-- [ ] Phase 4: Airflow scheduling and drift alerts
+- [x] Phase 3: local LLM second opinion
+- [x] Phase 4: Airflow scheduling and drift alerts
 - [ ] Phase 5: Terraform deployment on Azure
 
 Design decisions live in [`docs/decisions/`](docs/decisions/).
