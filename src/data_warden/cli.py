@@ -21,6 +21,8 @@ from data_warden.contracts import (
 )
 from data_warden.evaluate import Report, evaluate, load_ground_truth
 from data_warden.introspect import all_columns
+from data_warden.llm import DEFAULT_URL as DEFAULT_LLM_URL
+from data_warden.llm import LlmError, OllamaClassifier, add_llm_findings
 from data_warden.policy import PolicyError, load_policy
 from data_warden.scan import DEFAULT_THRESHOLD, scan
 
@@ -62,6 +64,42 @@ ThresholdOption = Annotated[
     float, typer.Option(min=0.0, max=1.0, help="Minimum match share to flag a column.")
 ]
 JsonOption = Annotated[bool, typer.Option("--json", help="Print machine-readable JSON only.")]
+LlmOption = Annotated[
+    bool,
+    typer.Option(
+        "--llm", help="Also ask a local model about columns the rules did not flag (slower)."
+    ),
+]
+LlmModelOption = Annotated[
+    str | None,
+    typer.Option(envvar="DATA_WARDEN_LLM_MODEL", help="Name of a model you have pulled in Ollama."),
+]
+LlmUrlOption = Annotated[
+    str, typer.Option(envvar="DATA_WARDEN_LLM_URL", help="Where Ollama is listening.")
+]
+AllowRemoteOption = Annotated[
+    bool,
+    typer.Option(
+        "--allow-remote-llm",
+        help="Allow a non-local model server. Column values will leave this machine.",
+    ),
+]
+
+
+def _with_llm(engine, findings, model, llm_url, allow_remote, limit):
+    """Add the local model's findings, or exit with code 2 and a clear message."""
+    if not model:
+        typer.echo("error: --llm needs --llm-model (or DATA_WARDEN_LLM_MODEL)", err=True)
+        raise typer.Exit(2)
+    try:
+        classifier = OllamaClassifier(model, llm_url, allow_remote=allow_remote)
+        merged, unusable = add_llm_findings(engine, findings, classifier, limit=limit)
+    except LlmError as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(2) from error
+    if unusable:
+        typer.echo(f"warning: {unusable} model reply(ies) were unusable and ignored", err=True)
+    return merged
 
 
 @app.command(name="scan")
@@ -70,9 +108,16 @@ def scan_command(
     limit: LimitOption = 1000,
     threshold: ThresholdOption = DEFAULT_THRESHOLD,
     as_json: JsonOption = False,
+    llm: LlmOption = False,
+    llm_model: LlmModelOption = None,
+    llm_url: LlmUrlOption = DEFAULT_LLM_URL,
+    allow_remote_llm: AllowRemoteOption = False,
 ) -> None:
     """Scan a database and list columns that look like personal data."""
-    findings = scan(create_engine(url), limit=limit, threshold=threshold)
+    engine = create_engine(url)
+    findings = scan(engine, limit=limit, threshold=threshold)
+    if llm:
+        findings = _with_llm(engine, findings, llm_model, llm_url, allow_remote_llm, limit)
     if as_json:
         typer.echo(json.dumps([asdict(f) for f in findings], indent=2))
         return
@@ -82,10 +127,11 @@ def scan_command(
             "A clean scan is evidence, not proof."
         )
         return
-    typer.echo(f"{'COLUMN':<28}{'TYPE':<16}{'CONFIDENCE':<12}SAMPLES")
+    typer.echo(f"{'COLUMN':<28}{'TYPE':<16}{'CONFIDENCE':<12}{'SOURCE':<8}SAMPLES")
     for f in findings:
         typer.echo(
-            f"{f.table + '.' + f.column:<28}{f.pii_type:<16}{f.confidence:<12.0%}{f.sample_size}"
+            f"{f.table + '.' + f.column:<28}{f.pii_type:<16}{f.confidence:<12.0%}"
+            f"{f.source:<8}{f.sample_size}"
         )
 
 
@@ -111,23 +157,7 @@ def _report_to_dict(report: Report) -> dict:
     }
 
 
-@app.command(name="evaluate")
-def evaluate_command(
-    url: UrlOption = DEFAULT_URL,
-    truth: Annotated[
-        Path,
-        typer.Option(exists=True, dir_okay=False, help="Answer key written by `seed`."),
-    ] = Path("ground_truth.json"),
-    limit: LimitOption = 1000,
-    threshold: ThresholdOption = DEFAULT_THRESHOLD,
-    as_json: JsonOption = False,
-) -> None:
-    """Score the scanner against an answer key (precision and recall per PII type)."""
-    findings = scan(create_engine(url), limit=limit, threshold=threshold)
-    report = evaluate(findings, load_ground_truth(truth))
-    if as_json:
-        typer.echo(json.dumps(_report_to_dict(report), indent=2))
-        return
+def _print_report(report: Report) -> None:
     typer.echo(f"{'TYPE':<16}{'TP':>4}{'FP':>4}{'FN':>4}  {'PRECISION':<11}RECALL")
     for s in [*report.by_type, report.overall]:
         typer.echo(
@@ -138,6 +168,51 @@ def evaluate_command(
         typer.echo(
             f"\n{report.unlabeled} flagged column(s) are not in the answer key and were ignored."
         )
+
+
+@app.command(name="evaluate")
+def evaluate_command(
+    url: UrlOption = DEFAULT_URL,
+    truth: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, help="Answer key written by `seed`."),
+    ] = Path("ground_truth.json"),
+    limit: LimitOption = 1000,
+    threshold: ThresholdOption = DEFAULT_THRESHOLD,
+    as_json: JsonOption = False,
+    llm: LlmOption = False,
+    llm_model: LlmModelOption = None,
+    llm_url: LlmUrlOption = DEFAULT_LLM_URL,
+    allow_remote_llm: AllowRemoteOption = False,
+) -> None:
+    """Score the scanner against an answer key (precision and recall per PII type).
+
+    With --llm, prints rules alone and rules plus the local model, so the gain (or the damage)
+    is visible side by side.
+    """
+    engine = create_engine(url)
+    answer_key = load_ground_truth(truth)
+    findings = scan(engine, limit=limit, threshold=threshold)
+    rules_report = evaluate(findings, answer_key)
+    if not llm:
+        if as_json:
+            typer.echo(json.dumps(_report_to_dict(rules_report), indent=2))
+        else:
+            _print_report(rules_report)
+        return
+    combined = _with_llm(engine, findings, llm_model, llm_url, allow_remote_llm, limit)
+    llm_report = evaluate(combined, answer_key)
+    if as_json:
+        payload = {
+            "rules": _report_to_dict(rules_report),
+            "rules_and_llm": _report_to_dict(llm_report),
+        }
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    typer.echo("RULES ONLY")
+    _print_report(rules_report)
+    typer.echo("\nRULES + LLM")
+    _print_report(llm_report)
 
 
 ContractsDirOption = Annotated[

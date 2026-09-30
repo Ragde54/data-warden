@@ -54,6 +54,13 @@
           "pii_type": null,
           "source": null,
           "confidence": null
+        },
+        {
+          "name": "company_name",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
         }
       ],
       "errors": 0,
@@ -132,11 +139,18 @@
           "confidence": null
         },
         {
+          "name": "product_name",
+          "data_type": "TEXT",
+          "pii_type": null,
+          "source": null,
+          "confidence": null
+        },
+        {
           "name": "notes",
           "data_type": "TEXT",
           "pii_type": "free_text_pii",
           "source": "detected + declared",
-          "confidence": 0.175
+          "confidence": 0.1325
         }
       ],
       "errors": 0,

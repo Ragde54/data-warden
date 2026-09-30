@@ -24,6 +24,7 @@ Do not edit by hand: change the contracts and regenerate.
 | phone | TEXT | phone | detected + declared | 100% |
 | postcode | TEXT | - | - | - |
 | segment | TEXT | - | - | - |
+| company_name | TEXT | - | - | - |
 
 ## employees
 
@@ -42,4 +43,5 @@ Do not edit by hand: change the contracts and regenerate.
 | customer_id | INTEGER | - | - | - |
 | amount | NUMERIC(10, 2) | - | - | - |
 | order_ref | TEXT | - | - | - |
-| notes | TEXT | free_text_pii | detected + declared | 18% |
+| product_name | TEXT | - | - | - |
+| notes | TEXT | free_text_pii | detected + declared | 13% |

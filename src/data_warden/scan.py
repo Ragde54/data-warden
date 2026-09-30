@@ -22,6 +22,8 @@ class Finding:
     # personal data, which is why that type has its own, much lower threshold.
     confidence: float
     sample_size: int
+    # Who found it: "rules" (deterministic) or "llm" (local model, optional, not reproducible).
+    source: str = "rules"
 
 
 def scan(

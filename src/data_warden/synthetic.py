@@ -15,6 +15,12 @@ from sqlalchemy import Column, Integer, MetaData, Numeric, Table, Text, create_e
 
 DNI_LETTERS = "TRWAGMYFPDXBNJZSQVHLCKE"
 
+# Products named after people: a trap for anything that guesses "person name" by word shape.
+PRODUCT_NAMES = [
+    "Silla Eames", "Lampara Tiffany", "Mesa Bauhaus", "Sofa Chesterfield",
+    "Estanteria Billy", "Escritorio Ferdinand", "Cama Montessori", "Butaca Wassily",
+]  # fmt: skip
+
 # "table.column" -> PII type, or None when the column is NOT personal data (a decoy).
 GROUND_TRUTH: dict[str, str | None] = {
     "customers.id": None,
@@ -24,10 +30,12 @@ GROUND_TRUTH: dict[str, str | None] = {
     "customers.phone": "phone",
     "customers.postcode": None,  # digits, but not personal
     "customers.segment": None,
+    "customers.company_name": None,  # decoy: reads like a surname, but it is a company
     "orders.id": None,
     "orders.customer_id": None,
     "orders.amount": None,
     "orders.order_ref": None,  # looks like an identifier, is not PII
+    "orders.product_name": None,  # decoy: product names borrowed from people
     "orders.notes": "free_text_pii",  # sometimes contains a phone number
     "employees.id": None,
     "employees.ref_code": "national_id",  # Spanish DNI hidden in a vague column
@@ -59,6 +67,7 @@ def generate(seed: int = 42, rows: int = 200) -> dict[str, list[dict[str, Any]]]
             "phone": fake.phone_number(),
             "postcode": fake.postcode(),
             "segment": rng.choice(["retail", "smb", "enterprise"]),
+            "company_name": fake.company(),
         }
         for i in range(1, rows + 1)
     ]
@@ -72,6 +81,7 @@ def generate(seed: int = 42, rows: int = 200) -> dict[str, list[dict[str, Any]]]
                 "customer_id": rng.randint(1, rows),
                 "amount": round(rng.uniform(5, 900), 2),
                 "order_ref": f"ORD-{i:06d}",
+                "product_name": rng.choice(PRODUCT_NAMES),
                 "notes": note,
             }
         )
@@ -98,6 +108,7 @@ def _tables(meta: MetaData) -> None:
         Column("phone", Text),
         Column("postcode", Text),
         Column("segment", Text),
+        Column("company_name", Text),
     )
     Table(
         "orders",
@@ -106,6 +117,7 @@ def _tables(meta: MetaData) -> None:
         Column("customer_id", Integer),
         Column("amount", Numeric(10, 2)),
         Column("order_ref", Text),
+        Column("product_name", Text),
         Column("notes", Text),
     )
     Table(
